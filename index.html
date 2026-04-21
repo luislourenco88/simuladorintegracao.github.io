@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador Game - Integração</title>
+
+<style>
+body { margin:0; font-family:'Segoe UI',sans-serif; background:radial-gradient(circle at top,#0f172a,#020617); color:#e2e8f0; }
+h1{text-align:center;margin:15px 0;}
+.container{display:grid;grid-template-columns:1fr 300px;gap:15px;padding:15px;}
+.panel{background:rgba(15,23,42,0.85);border:1px solid #38bdf8;border-radius:12px;padding:10px;box-shadow:0 0 15px rgba(56,189,248,0.2);}
+.controls{text-align:center;margin-bottom:10px;}
+select,button{padding:10px;border-radius:8px;border:none;font-weight:bold;}
+button{background:#22c55e;cursor:pointer;}button:hover{background:#16a34a;}
+#canvas{position:relative;height:300px;border:2px solid #38bdf8;border-radius:10px;overflow:hidden;}
+.box{position:absolute;padding:12px;border-radius:10px;font-weight:bold;}
+#frontend{left:20px;top:120px;background:#22c55e;}#backend{right:20px;top:120px;background:#f97316;}
+.message{position:absolute;width:14px;height:14px;border-radius:50%;box-shadow:0 0 10px;}
+.request{background:#38bdf8;box-shadow:0 0 10px #38bdf8;}
+.response{background:#22c55e;box-shadow:0 0 10px #22c55e;}
+.channel{position:absolute;height:4px;top:148px;left:60px;right:60px;background:linear-gradient(90deg,#38bdf8,#22c55e);border-radius:2px;box-shadow:0 0 10px #38bdf8;}
+#logs{height:300px;overflow-y:auto;font-family:monospace;font-size:12px;background:#020617;padding:10px;border-radius:8px;}
+.log-entry{margin-bottom:5px;}
+.success{color:#22c55e;} .warn{color:#facc15;} .info{color:#38bdf8;} .error{color:#ef4444;}
+#description{text-align:center;margin-top:10px;}
+</style>
+</head>
+<body>
+<h1>🎮 Simulador de Comunicação</h1>
+<div class="controls">
+<select id="tech">
+<option value="rest">API REST</option>
+<option value="grpc">gRPC</option>
+<option value="messaging">Mensageria</option>
+<option value="webhook">Webhook</option>
+</select>
+<button onclick="startSimulation()">▶ Iniciar</button>
+</div>
+<div class="container">
+<div class="panel">
+<div id="canvas">
+<div id="frontend" class="box">💻 Front-End</div>
+<div id="backend" class="box">🗄️ Back-End</div>
+</div>
+<div id="description"></div>
+</div>
+<div class="panel">
+<strong>📡 Console</strong>
+<div id="logs"></div>
+</div>
+</div>
+<script>
+let streamInterval=null;
+function log(msg,type='info'){const logs=document.getElementById('logs');const e=document.createElement('div');e.className='log-entry '+type;e.innerText=`[${new Date().toLocaleTimeString()}] ${msg}`;logs.appendChild(e);logs.scrollTop=logs.scrollHeight;}
+function reset(){const c=document.getElementById('canvas');c.innerHTML=`<div id="frontend" class="box">💻 Front-End</div><div id="backend" class="box">🗄️ Back-End</div>`;document.getElementById('logs').innerHTML='';if(streamInterval)clearInterval(streamInterval);}
+function startSimulation(){reset();const tech=document.getElementById('tech').value;const desc=document.getElementById('description');
+if(tech==='rest'){desc.innerText='REST: HTTP stateless com request/response';animateREST();}
+if(tech==='grpc'){desc.innerText='gRPC: canal persistente com streaming';log('Abrindo conexão HTTP/2');animateStream();}
+if(tech==='messaging'){desc.innerText='Fila assíncrona';animateQueue();}
+if(tech==='webhook'){desc.innerText='Evento dispara callback';setTimeout(()=>{log('Webhook disparado');animateOnce(false,'response');},1000);} }
+
+function animateREST(){
+  const delay=Math.random()*1500+500;
+  const statusPool=[200,200,200,404,500];
+  const status=statusPool[Math.floor(Math.random()*statusPool.length)];
+
+  log('GET /alunos','info');
+  log('Headers: Content-Type=application/json','info');
+
+  animateOnce(true,'request',()=>{
+    log('Aguardando resposta do servidor...','warn');
+    setTimeout(()=>{
+      if(status===200){
+        log('200 OK','success');
+        log('Payload: {"nome":"João"}','info');
+        animateOnce(false,'response');
+      } else if(status===404){
+        log('404 Not Found','error');
+      } else {
+        log('500 Server Error','error');
+      }
+    },delay);
+  });
+}
+
+function animateOnce(forward=true,type='request',cb){
+  const c=document.getElementById('canvas');
+  const m=document.createElement('div');
+  m.className='message '+type;
+  c.appendChild(m);
+
+  let x=forward?50:c.offsetWidth-50;
+  const dir=forward?1:-1;
+
+  function step(){
+    x+=dir*4;
+    m.style.left=x+'px';
+    m.style.top='140px';
+    if((forward && x<c.offsetWidth-50)||(!forward && x>50)){
+      requestAnimationFrame(step);
+    } else { if(cb)cb(); }
+  }
+  step();
+}
+
+function animateStream(){const c=document.getElementById('canvas');const ch=document.createElement('div');ch.className='channel';c.appendChild(ch);log('Canal aberto','success');streamInterval=setInterval(()=>{const m=document.createElement('div');m.className='message request';c.appendChild(m);let x=60;function move(){x+=6;m.style.left=x+'px';m.style.top='140px';if(x<c.offsetWidth-60)requestAnimationFrame(move);else m.remove();}move();},400);log('Streaming ativo','warn');}
+
+function animateQueue(){const c=document.getElementById('canvas');const q=document.createElement('div');q.className='box';q.style.left='45%';q.style.top='120px';q.style.background='#9333ea';q.innerText='Fila';c.appendChild(q);const m=document.createElement('div');m.className='message request';c.appendChild(m);let x=50;function step(){x+=3;m.style.left=x+'px';m.style.top='140px';if(x<c.offsetWidth/2){requestAnimationFrame(step);} else {log('Na fila','warn');setTimeout(()=>{log('Consumido','info');animateOnce(true,'request');},1000);} }step();}
+</script>
+</body>
+</html>
